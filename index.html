@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Sức Bền Tài Chính — MVP V1.2</title>
+<title>Sức Bền Tài Chính — MVP V1.3</title>
 <style>
   :root{
     --bg:#f6f8f7;
@@ -50,7 +50,7 @@
   .ytbox{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ytitem{background:var(--soft);border-radius:16px;padding:14px}.ytitem strong{display:block;font-size:20px;margin-top:6px}.gap{margin-top:10px;font-size:14px;color:#4c615b}
   .feedback{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}.feedbackBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.feedbackBtns button{padding:11px;border-radius:13px;border:1px solid var(--line);background:white;cursor:pointer;font-weight:700}.feedbackBtns button.active{background:var(--accent-2);border-color:var(--accent)}
   .tiny{font-size:12px;color:var(--muted)}
-  .footer{padding:18px 4px 0;text-align:center;color:var(--muted);font-size:11px}
+  .footer{padding:18px 4px 0;text-align:center;color:var(--muted);font-size:11px;line-height:1.6}.copyright{margin-top:4px;color:#456057;font-weight:650}
   .hidden{display:none!important}
   @media(max-width:520px){.app{padding:12px 10px 30px}.card{padding:22px 17px;border-radius:21px}h1{font-size:28px}h2{font-size:23px}.progressWrap{min-width:105px}.feedbackBtns{grid-template-columns:1fr}.ytbox{grid-template-columns:1fr}}
 </style>
@@ -59,20 +59,20 @@
 <div class="app">
   <div class="topbar">
     <div class="brandmark">S</div>
-    <div class="brandtxt"><b>Sức Bền Tài Chính</b><span>MVP V1.2 • Tầng 1</span></div>
+    <div class="brandtxt"><b>Sức Bền Tài Chính</b><span>MVP V1.3 • Tầng 1</span></div>
     <div class="progressWrap" id="progressWrap" style="display:none">
       <div class="progressLabel" id="progressLabel">Khám phá bản thân</div>
       <div class="progress"><div id="progressBar"></div></div>
     </div>
   </div>
   <main id="screen"></main>
-  <div class="footer">Bản prototype thử nghiệm — không có đáp án đúng hay sai.</div>
+  <div class="footer">Bản prototype thử nghiệm — không có đáp án đúng hay sai.<div class="copyright">© 2026 Bản quyền tác giả: Nguyễn Thành • 0986 831 158 • Manulife Việt Nam</div></div>
 </div>
 <script>
 const state = {
   name:'', pronoun:'Anh', current:0,
   answers:{}, scores:{}, flags:{},
-  history:[]
+  history:[], multi:{}
 };
 
 const screen = document.getElementById('screen');
@@ -96,6 +96,47 @@ function primary(label, action){ return `<button class="btn primary" onclick="${
 function optionList(options, qid, reactionFn){
   return `<div class="grid">${options.map((o,i)=>`<button class="option" onclick="answer('${qid}', ${i}, this)"><b>${String.fromCharCode(65+i)}.</b> ${o.label}</button>`).join('')}</div><div id="reaction" class="reaction"></div>`;
 }
+
+function multiOptionList(options,qid,max=2,exclusiveKeys=[]){
+  return `<div class="grid">${options.map((o,i)=>`<button class="option" data-idx="${i}" onclick="toggleMulti('${qid}',${i},this,${max},${JSON.stringify(exclusiveKeys).replace(/"/g,'&quot;')})"><b>${String.fromCharCode(65+i)}.</b> ${o.label}</button>`).join('')}</div><div class="tiny" style="margin-top:10px">Có thể chọn tối đa ${max} phương án phù hợp nhất.</div><div id="reaction" class="reaction"></div><button id="multiNext" class="btn primary" style="display:none" onclick="commitMulti('${qid}')">Tiếp tục →</button>`;
+}
+function getOptions(qid){
+  if(qid==='q1') return Q1;
+  if(qid==='q5') return [{label:'Con cái',key:'child'},{label:'Bố mẹ/người thân',key:'parents'},{label:'Hiện tại chủ yếu là bản thân tôi',key:'self'}];
+  if(qid==='q7') return [{label:'Khoản dành cho con/gia đình',key:'family'},{label:'Đầu tư dài hạn',key:'investment'},{label:'Nhà đất/tài sản lớn',key:'property'},{label:'Nguồn vốn tạo thu nhập',key:'business_capital'},{label:'Khoản dành cho cuộc sống tương lai',key:'future'},{label:'Tôi chưa phân chia thật rõ',key:'unclear'}];
+  return [];
+}
+function toggleMulti(qid,idx,el,max,exclusiveKeys){
+  const opts=getOptions(qid), picked=opts[idx];
+  state.multi=state.multi||{}; let arr=state.multi[qid]||[];
+  const isExclusive=exclusiveKeys.includes(picked.key);
+  const exists=arr.includes(idx);
+  if(exists) arr=arr.filter(x=>x!==idx);
+  else if(isExclusive){ arr=[idx]; }
+  else {
+    arr=arr.filter(x=>!exclusiveKeys.includes(opts[x]?.key));
+    if(arr.length<max) arr.push(idx); else return;
+  }
+  state.multi[qid]=arr;
+  document.querySelectorAll('.option').forEach((b,i)=>b.classList.toggle('selected',arr.includes(i)));
+  const nextBtn=document.getElementById('multiNext'); if(nextBtn) nextBtn.style.display=arr.length?'block':'none';
+  const reaction=document.getElementById('reaction');
+  if(reaction){
+    let txt='';
+    if(qid==='q1'&&arr.length) txt=arr.length===1?Q1[arr[0]].reaction:'Hai ưu tiên này sẽ được đặt cạnh nhau trong bức tranh cuối.';
+    if(qid==='q7'&&arr.length) txt='Mình sẽ ghi nhớ những phần bạn muốn giữ nguyên nhất.';
+    if(qid==='q5'&&arr.length) txt='Hiểu rồi. Đây là những người/nhóm đang nằm trong bức tranh trách nhiệm của bạn.';
+    if(txt){reaction.textContent=txt;reaction.style.display='block';} else reaction.style.display='none';
+  }
+}
+function commitMulti(qid){
+  const opts=getOptions(qid), arr=(state.multi&&state.multi[qid])||[];
+  const picks=arr.map(i=>({...opts[i],index:i}));
+  state.answers[qid]={multi:true,picks,keys:picks.map(x=>x.key),key:picks[0]?.key,indexes:arr};
+  if(qid==='q7'&&picks.some(x=>x.key==='unclear')) state.flags.resource_roles_unclear=true;
+  next(qid);
+}
+function singleHint(){return `<div class="tiny" style="margin-top:10px">Hãy chọn phương án gần nhất với thực tế hiện tại của bạn.</div>`;}
 
 function intro(){
   render(`<section class="card hero">
@@ -134,13 +175,14 @@ const Q1=[
  {label:'Cuộc sống tương lai thảnh thơi hơn',key:'future',reaction:'Có vẻ điều bạn hướng tới nhiều nhất là sự chủ động về sau.'}
 ];
 function q1(){
- render(`<section class="card"><div class="kicker">Câu 1 • Điều đang xây</div><h2>${who()} này, nếu 3–5 năm tới mọi việc diễn ra khá thuận lợi, điều gì khiến ${lowerPronoun()} cảm thấy mình đang đi đúng hướng nhất?</h2>${optionList(Q1,'q1')}<div class="fun">Biết là muốn cả 5 😄 Nhưng thử chọn điều khiến mình vui nhất nhé.</div></section>`,1);
+ render(`<section class="card"><div class="kicker">Câu 1 • Điều đang xây</div><h2>${who()} này, nếu 3–5 năm tới mọi việc diễn ra khá thuận lợi, những điều nào khiến ${lowerPronoun()} cảm thấy mình đang đi đúng hướng nhất?</h2>${multiOptionList(Q1,'q1',2,[])}<div class="fun">Biết là muốn cả 5 😄 Chọn tối đa 2 điều quan trọng nhất nhé.</div></section>`,1);
 }
 function q2(){
- const k=state.answers.q1?.key;
+ const keys=state.answers.q1?.keys||[state.answers.q1?.key];
  const prompts={child:'Kế hoạch dành cho con hiện đã được chuẩn bị đến đâu rồi?',asset:'Mục tiêu tài sản bạn đang hướng tới hiện đã được chuẩn bị đến đâu?',business:'Kế hoạch phát triển công việc hiện đã được chuẩn bị đến đâu?',invest:'Kế hoạch tích lũy và đầu tư hiện đã đi đến đâu?',future:'Kế hoạch cho cuộc sống bạn mong muốn sau này đã được chuẩn bị đến đâu?'};
+ const prompt=keys.length>1?'Với hai ưu tiên vừa chọn, mức độ chuẩn bị nguồn lực cho chúng hiện đang ở đâu?':prompts[keys[0]];
  const opts=['Chủ yếu mới đang nghĩ tới','Đã bắt đầu nhưng chưa tách nguồn rõ','Đã có một phần nguồn lực','Có kế hoạch và nguồn lực khá rõ','Có nguồn riêng và đang đi đúng lộ trình'];
- render(`<section class="card"><div class="kicker">Câu 2 • Mức độ chắc của mục tiêu</div><h2>${prompts[k]}</h2>${optionList(opts.map((x,i)=>({label:x,score:i})),'q2')}</section>`,2);
+ render(`<section class="card"><div class="kicker">Câu 2 • Mức độ chắc của mục tiêu</div><h2>${prompt}</h2>${optionList(opts.map((x,i)=>({label:x,score:i})),'q2')}${singleHint()}</section>`,2);
 }
 function q3(){
  const opts=[{label:'Công việc/lương chuyên môn',key:'salary'},{label:'Kinh doanh riêng',key:'business'},{label:'Đầu tư và tài sản',key:'asset'},{label:'Nhiều nguồn kết hợp',key:'mixed'}];
@@ -155,28 +197,32 @@ function q4(){
   mixed:`Nếu nguồn tạo tiền lớn nhất tạm dừng, những nguồn còn lại có thể thay thế được bao nhiêu?`
  };
  const opts=['Gần như không có nguồn thay thế','Chỉ thay thế được một phần nhỏ','Khoảng một nửa','Phần lớn','Gần như không ảnh hưởng'];
- render(`<section class="card"><div class="kicker">Câu 4 • Sức bền của nguồn tạo tiền</div><h2>${prompts[k]}</h2>${optionList(opts.map((x,i)=>({label:x,score:i})),'q4')}<div class="note">Khả năng tạo ra thu nhập cũng là một dạng <b>tài sản tạo tiền</b> — chỉ là nó không nằm trong két hay trên sổ đỏ.</div></section>`,4);
+ render(`<section class="card"><div class="kicker">Câu 4 • Sức bền của nguồn tạo tiền</div><h2>${prompts[k]}</h2>${optionList(opts.map((x,i)=>({label:x,score:i})),'q4')}${singleHint()}<div class="note">Khả năng tạo ra thu nhập cũng là một dạng <b>tài sản tạo tiền</b> — chỉ là nó không nằm trong két hay trên sổ đỏ.</div></section>`,4);
 }
 function q5(){
- const opts=[{label:'Con cái',key:'child'},{label:'Bố mẹ/người thân',key:'parents'},{label:'Cả hai',key:'both'},{label:'Hiện tại chủ yếu là bản thân tôi',key:'self'}];
- render(`<section class="card"><div class="kicker">Câu 5 • Những người quan trọng</div><h2>Ngoài bản thân mình, hiện có ai mà ${who()} vẫn muốn đảm bảo cuộc sống và những kế hoạch quan trọng cho họ không?</h2>${optionList(opts,'q5')}</section>`,5);
+ const opts=[{label:'Con cái',key:'child'},{label:'Bố mẹ/người thân',key:'parents'},{label:'Hiện tại chủ yếu là bản thân tôi',key:'self'}];
+ render(`<section class="card"><div class="kicker">Câu 5 • Những người quan trọng</div><h2>Ngoài bản thân mình, hiện có ai mà ${who()} vẫn muốn đảm bảo cuộc sống và những kế hoạch quan trọng cho họ không?</h2>${multiOptionList(opts,'q5',2,['self'])}<div class="tiny" style="margin-top:8px">Nếu chọn “chủ yếu là bản thân tôi”, hệ thống sẽ hiểu đây là lựa chọn độc lập.</div></section>`,5);
 }
 function q6(){
- const k=state.answers.q5?.key;
- const prompts={child:`Nếu thu nhập của ${lowerPronoun()} giảm đáng kể một thời gian, kế hoạch dành cho con có thể được giữ gần như nguyên vẹn trong bao lâu?`,parents:'Việc hỗ trợ bố mẹ/người thân có thể được duy trì như hiện tại trong bao lâu?',both:'Nếu thu nhập giảm một thời gian, những trách nhiệm với con và bố mẹ có thể được duy trì cùng lúc trong bao lâu?',self:`Nếu thu nhập giảm đáng kể, mức sống và những mục tiêu riêng của ${lowerPronoun()} có thể được giữ như hiện tại trong bao lâu?`};
+ const keys=state.answers.q5?.keys||[state.answers.q5?.key];
+ let prompt='';
+ if(keys.includes('self')) prompt=`Nếu thu nhập giảm đáng kể, mức sống và những mục tiêu riêng của ${lowerPronoun()} có thể được giữ như hiện tại trong bao lâu?`;
+ else if(keys.includes('child')&&keys.includes('parents')) prompt='Nếu thu nhập giảm một thời gian, những trách nhiệm với con và bố mẹ/người thân có thể được duy trì cùng lúc trong bao lâu?';
+ else if(keys.includes('child')) prompt=`Nếu thu nhập của ${lowerPronoun()} giảm đáng kể một thời gian, kế hoạch dành cho con có thể được giữ gần như nguyên vẹn trong bao lâu?`;
+ else prompt='Việc hỗ trợ bố mẹ/người thân có thể được duy trì như hiện tại trong bao lâu?';
  const opts=[{label:'Dưới 3 tháng',score:0},{label:'3–6 tháng',score:1},{label:'6–12 tháng',score:2},{label:'Trên 12 tháng',score:3},{label:'Phần này đã có nguồn tương đối riêng',score:4}];
- render(`<section class="card"><div class="kicker">Câu 6 • Khả năng duy trì</div><h2>${prompts[k]}</h2>${optionList(opts,'q6')}</section>`,6);
+ render(`<section class="card"><div class="kicker">Câu 6 • Khả năng duy trì</div><h2>${prompt}</h2>${optionList(opts,'q6')}${singleHint()}</section>`,6);
 }
 function transition1(){
  render(`<section class="card transition"><div class="emoji">🧩</div><h2>Cảm ơn ${who()}!</h2><p>Đến đây chúng ta đã biết khá rõ điều ${lowerPronoun()} đang xây dựng.</p><div class="note">Bây giờ thử xem: <b>những kế hoạch đó đang được “chống lưng” tốt đến đâu? 😉</b></div>${primary('Tiếp tục →','q7()')}</section>`,6);
 }
 function q7(){
  const opts=[{label:'Khoản dành cho con/gia đình',key:'family'},{label:'Đầu tư dài hạn',key:'investment'},{label:'Nhà đất/tài sản lớn',key:'property'},{label:'Nguồn vốn tạo thu nhập',key:'business_capital'},{label:'Khoản dành cho cuộc sống tương lai',key:'future'},{label:'Tôi chưa phân chia thật rõ',key:'unclear'}];
- render(`<section class="card"><div class="kicker">Câu 7 • Điều ít muốn đổi nhiệm vụ nhất</div><h2>Trong những gì đang có, khoản nào ${who()} ít muốn phải đổi nhiệm vụ nhất?</h2>${optionList(opts,'q7')}<div class="fun">Nôm na là: “ống heo” nào mình ít muốn phải đập nhất? 😄</div></section>`,7);
+ render(`<section class="card"><div class="kicker">Câu 7 • Điều ít muốn đổi nhiệm vụ nhất</div><h2>Trong những gì đang có, những khoản nào ${who()} ít muốn phải đổi nhiệm vụ nhất?</h2>${multiOptionList(opts,'q7',2,['unclear'])}<div class="fun">Nôm na là: “ống heo” nào mình ít muốn phải đập nhất? 😄 Chọn tối đa 2.</div></section>`,7);
 }
 function q8(){
  const opts=[{label:'Một nguồn riêng đã chuẩn bị',key:'dedicated',score:4},{label:'Tiền đang để dành',key:'savings',score:3},{label:'Một khoản đầu tư',key:'investment',score:2},{label:'Nguồn vốn cho công việc',key:'business_capital',score:1},{label:'Huy động thêm từ nguồn khác',key:'external',score:0}];
- render(`<section class="card"><div class="kicker">Câu 8 • Tình huống giả định</div><h2>Thử một tình huống giả định nhé. Nếu ngày mai gia đình cần chuẩn bị khoảng <b>500 triệu–1 tỷ</b> cho một vấn đề sức khỏe lớn, nguồn nào sẽ xuất hiện đầu tiên trong đầu ${who()}?</h2>${optionList(opts,'q8')}<div class="note">Không cần nghĩ quá căng. Mục đích chỉ là xem phản xạ tài chính tự nhiên của mình sẽ đi về đâu.</div></section>`,8);
+ render(`<section class="card"><div class="kicker">Câu 8 • Tình huống giả định</div><h2>Thử một tình huống giả định nhé. Nếu ngày mai gia đình cần chuẩn bị khoảng <b>500 triệu–1 tỷ</b> cho một vấn đề sức khỏe lớn, nguồn nào sẽ xuất hiện đầu tiên trong đầu ${who()}?</h2>${optionList(opts,'q8')}<div class="tiny" style="margin-top:10px">Chọn nguồn xuất hiện đầu tiên trong đầu bạn — nếu thực tế dùng nhiều nguồn, ta sẽ làm rõ ở bước sau.</div><div class="note">Không cần nghĩ quá căng. Mục đích chỉ là xem phản xạ tài chính tự nhiên của mình sẽ đi về đâu.</div></section>`,8);
 }
 function q9(){
  const k=state.answers.q8?.key; let prompt='', opts=[];
@@ -185,11 +231,11 @@ function q9(){
  if(k==='business_capital'){prompt='Nếu sử dụng nguồn vốn đó, khả năng tạo thu nhập phía sau sẽ bị ảnh hưởng thế nào?';opts=['Rất nhiều','Khá nhiều','Một phần','Ít','Gần như không'].map((x,i)=>({label:x,score:i}));}
  if(k==='external'){prompt='Nếu nguồn hỗ trợ đó không thuận lợi đúng lúc cần, bạn còn phương án nào khác không?';opts=['Chưa có','Rất hạn chế','Có thể xoay sở','Có nguồn thứ hai khá rõ','Có nguồn độc lập'].map((x,i)=>({label:x,score:i}));}
  if(k==='dedicated'){prompt='Nguồn riêng này nếu phải sử dụng cho một tình huống lớn có thể duy trì sự chủ động khoảng bao lâu?';opts=[{label:'Dưới 3 tháng',score:1},{label:'3–6 tháng',score:2},{label:'6–12 tháng',score:3},{label:'Trên 12 tháng',score:4},{label:'Tôi chưa từng tính',score:2,flag:'unknown_buffer'}];}
- render(`<section class="card"><div class="kicker">Câu 9 • Đào sâu nguồn lực</div><h2>${prompt}</h2>${optionList(opts,'q9')}</section>`,9);
+ render(`<section class="card"><div class="kicker">Câu 9 • Đào sâu nguồn lực</div><h2>${prompt}</h2>${optionList(opts,'q9')}${singleHint()}</section>`,9);
 }
 function q10(){
  const opts=[{label:'Dưới 3 tháng',score:0},{label:'3–6 tháng',score:1},{label:'6–12 tháng',score:3},{label:'Trên 12 tháng',score:4},{label:'Tôi chưa từng tính cụ thể',score:1,flag:'unknown_resilience'}];
- render(`<section class="card"><div class="kicker">Câu 10 • Sức chịu đựng thật</div><h2>Nếu nguồn thu chính dừng từ ngày mai, gia đình có thể duy trì mức sống hiện tại bao lâu mà chưa phải thay đổi một kế hoạch lớn?</h2>${optionList(opts,'q10')}<div class="fun">“Chắc cũng được lâu” chưa phải một đơn vị thời gian đâu nhé 😄</div></section>`,10);
+ render(`<section class="card"><div class="kicker">Câu 10 • Sức chịu đựng thật</div><h2>Nếu nguồn thu chính dừng từ ngày mai, gia đình có thể duy trì mức sống hiện tại bao lâu mà chưa phải thay đổi một kế hoạch lớn?</h2>${optionList(opts,'q10')}${singleHint()}<div class="fun">“Chắc cũng được lâu” chưa phải một đơn vị thời gian đâu nhé 😄</div></section>`,10);
 }
 function q11(){
  const opts=[
@@ -199,11 +245,11 @@ function q11(){
   {label:'Có thể tiếp cận phương án tốt hơn mà không quá lo về chi phí',score:3},
   {label:'Ưu tiên điều tốt nhất cho sức khỏe trước, còn nguồn lực đã có sự chuẩn bị',score:4}
  ];
- render(`<section class="card"><div class="kicker">Câu 11 • Quyền chủ động y tế</div><h2>Nếu bác sĩ đưa ra một vài phương án điều trị với mức chi phí khác nhau, ${who()} mong mình ở vị thế nào?</h2>${optionList(opts,'q11')}<div class="note">Câu này không đo “giỏi hay kém”. Nó chỉ cho biết <b>mức quyền lựa chọn mà mình mong muốn</b>.</div></section>`,11);
+ render(`<section class="card"><div class="kicker">Câu 11 • Quyền chủ động y tế</div><h2>Nếu bác sĩ đưa ra một vài phương án điều trị với mức chi phí khác nhau, ${who()} mong mình ở vị thế nào?</h2>${optionList(opts,'q11')}${singleHint()}<div class="note">Câu này không đo “giỏi hay kém”. Nó chỉ cho biết <b>mức quyền lựa chọn mà mình mong muốn</b>.</div></section>`,11);
 }
 function q12(){
  const opts=[{label:'Tương lai của con',key:'child'},{label:'Mức sống của gia đình',key:'lifestyle'},{label:'Tài sản đang gây dựng',key:'asset'},{label:'Nguồn vốn tạo thu nhập',key:'income_capital'},{label:'Cuộc sống của bố mẹ/người thân',key:'parents'},{label:'Sự chủ động và quyền lựa chọn của chính mình',key:'autonomy'}];
- render(`<section class="card"><div class="kicker">Câu 12 • Điều muốn giữ nhất</div><h2>Một câu cuối thôi, ${who()} 😊 Nếu có thể “khóa” một điều để một tình huống bất ngờ không được phép làm thay đổi nó, ${lowerPronoun()} sẽ chọn gì?</h2>${optionList(opts,'q12')}</section>`,12);
+ render(`<section class="card"><div class="kicker">Câu 12 • Điều muốn giữ nhất</div><h2>Một câu cuối thôi, ${who()} 😊 Nếu có thể “khóa” một điều để một tình huống bất ngờ không được phép làm thay đổi nó, ${lowerPronoun()} sẽ chọn gì?</h2>${optionList(opts,'q12')}<div class="tiny" style="margin-top:10px">Câu này cố ý chỉ chọn 1: nếu buộc phải ưu tiên, điều nào bạn muốn giữ nguyên nhất?</div></section>`,12);
 }
 
 function answer(qid, idx, el){
@@ -213,7 +259,7 @@ function answer(qid, idx, el){
   else if(qid==='q2') opts=['Chủ yếu mới đang nghĩ tới','Đã bắt đầu nhưng chưa tách nguồn rõ','Đã có một phần nguồn lực','Có kế hoạch và nguồn lực khá rõ','Có nguồn riêng và đang đi đúng lộ trình'].map((x,i)=>({label:x,score:i}));
   else if(qid==='q3') opts=[{label:'Công việc/lương chuyên môn',key:'salary'},{label:'Kinh doanh riêng',key:'business'},{label:'Đầu tư và tài sản',key:'asset'},{label:'Nhiều nguồn kết hợp',key:'mixed'}];
   else if(qid==='q4') opts=['Gần như không có nguồn thay thế','Chỉ thay thế được một phần nhỏ','Khoảng một nửa','Phần lớn','Gần như không ảnh hưởng'].map((x,i)=>({label:x,score:i}));
-  else if(qid==='q5') opts=[{label:'Con cái',key:'child'},{label:'Bố mẹ/người thân',key:'parents'},{label:'Cả hai',key:'both'},{label:'Hiện tại chủ yếu là bản thân tôi',key:'self'}];
+  else if(qid==='q5') opts=[{label:'Con cái',key:'child'},{label:'Bố mẹ/người thân',key:'parents'},{label:'Hiện tại chủ yếu là bản thân tôi',key:'self'}];
   else if(qid==='q6') opts=[{label:'Dưới 3 tháng',score:0},{label:'3–6 tháng',score:1},{label:'6–12 tháng',score:2},{label:'Trên 12 tháng',score:3},{label:'Phần này đã có nguồn tương đối riêng',score:4}];
   else if(qid==='q7') opts=[{label:'Khoản dành cho con/gia đình',key:'family'},{label:'Đầu tư dài hạn',key:'investment'},{label:'Nhà đất/tài sản lớn',key:'property'},{label:'Nguồn vốn tạo thu nhập',key:'business_capital'},{label:'Khoản dành cho cuộc sống tương lai',key:'future'},{label:'Tôi chưa phân chia thật rõ',key:'unclear'}];
   else if(qid==='q8') opts=[{label:'Một nguồn riêng đã chuẩn bị',key:'dedicated',score:4},{label:'Tiền đang để dành',key:'savings',score:3},{label:'Một khoản đầu tư',key:'investment',score:2},{label:'Nguồn vốn cho công việc',key:'business_capital',score:1},{label:'Huy động thêm từ nguồn khác',key:'external',score:0}];
@@ -253,31 +299,42 @@ function analyzing(){
 function scoreOf(q){return Number(state.answers[q]?.score ?? 0)}
 function clamp(v,min=0,max=4){return Math.max(min,Math.min(max,v))}
 function calcConflict(){
- const keep=state.answers.q7?.key, source=state.answers.q8?.key, q9=scoreOf('q9');
- if(keep==='unclear'){ state.flags.resource_roles_unclear=true; return 2; }
+ const keeps=state.answers.q7?.keys||[state.answers.q7?.key], source=state.answers.q8?.key, q9=scoreOf('q9');
+ if(keeps.includes('unclear')){ state.flags.resource_roles_unclear=true; return 2; }
  if(source==='dedicated') return 4;
- if(keep==='investment' && source==='investment') return q9<=1?0:q9===2?1:2;
- if(keep==='business_capital' && source==='business_capital') return q9<=1?0:q9===2?1:2;
- if(keep==='family' && source==='savings') return q9<=1?1:q9===2?2:3;
- if(keep==='future' && source==='savings') return q9<=1?1:q9===2?2:3;
- if(keep==='property' && source==='external') return 3;
- return q9>=3?4:q9===2?3:2;
+ const one=(keep)=>{
+  if(keep==='investment' && source==='investment') return q9<=1?0:q9===2?1:2;
+  if(keep==='business_capital' && source==='business_capital') return q9<=1?0:q9===2?1:2;
+  if(keep==='family' && source==='savings') return q9<=1?1:q9===2?2:3;
+  if(keep==='future' && source==='savings') return q9<=1?1:q9===2?2:3;
+  if(keep==='property' && source==='external') return 3;
+  return q9>=3?4:q9===2?3:2;
+ };
+ return Math.min(...keeps.filter(Boolean).map(one));
 }
 function level(v){ if(v<3)return'Cần làm rõ'; if(v<5)return'Nên củng cố'; if(v<7)return'Khá'; if(v<8.5)return'Vững'; return'Rất vững'; }
 function metricCard(name,val,desc){return `<div class="metric"><div class="metricTop"><span>${name}</span><span>${val.toFixed(1)}/10</span></div><div class="bar"><div style="width:${val*10}%"></div></div><small>${level(val)}${desc?' • '+desc:''}</small></div>`}
 function desiredLabel(v){return ['Thực tế','Cân bằng','Chủ động','Cao','Rất cao'][v]||'—'}
 function personaFor(s){
- const {CF,VB,GK,TL,YTgap}=s; const q3=state.answers.q3?.key, q1=state.answers.q1?.key;
+ const {CF,VB,GK,TL,YTgap}=s; const q3=state.answers.q3?.key, q1keys=state.answers.q1?.keys||[state.answers.q1?.key], q5keys=state.answers.q5?.keys||[state.answers.q5?.key];
  if(CF>=7&&VB>=7&&GK>=7&&TL>=7&&Math.min(CF,VB,GK,TL)>=6.5&&YTgap<=2&&!state.flags.resource_roles_unclear) return {name:'Người có cấu trúc tài chính vững',emoji:'🧱'};
- if((q1==='asset'||q1==='invest')&&(VB<5.5||s.conflict<=1.5)) return {name:'Tài sản là trọng tâm – vùng đệm chưa tương xứng',emoji:'🏗️'};
- if((q3==='salary'||q3==='business')&&scoreOf('q4')<=2&&state.answers.q5?.key!=='self') return {name:'Thu nhập gắn nhiều với chính mình',emoji:'⚙️'};
+ if((q1keys.includes('asset')||q1keys.includes('invest'))&&(VB<5.5||s.conflict<=1.5)) return {name:'Tài sản là trọng tâm – vùng đệm chưa tương xứng',emoji:'🏗️'};
+ if((q3==='salary'||q3==='business')&&scoreOf('q4')<=2&&!q5keys.includes('self')) return {name:'Thu nhập gắn nhiều với chính mình',emoji:'⚙️'};
  if(scoreOf('q8')>=3&&scoreOf('q9')>=3&&(state.flags.unknown_resilience||state.flags.unknown_buffer)) return {name:'Có vùng đệm – chưa biết “đủ” là bao nhiêu',emoji:'🛟'};
  const vals=[CF,VB,GK,TL], spread=Math.max(...vals)-Math.min(...vals);
  if(vals.every(v=>v>=5.5&&v<=8.5)&&spread<=2.5) return {name:'Người giữ cân bằng',emoji:'⚖️'};
  return {name:'Người đang kiến tạo',emoji:'🌱'};
 }
-function labelGoal(){const k=state.answers.q1?.key; return {child:'tương lai của con',asset:'việc xây dựng thêm tài sản',business:'sự phát triển của công việc/kinh doanh',invest:'việc tích lũy và đầu tư',future:'một tương lai chủ động và thảnh thơi hơn'}[k]||'mục tiêu quan trọng';}
-function labelKeep(){const k=state.answers.q7?.key;return {family:'khoản dành cho con/gia đình',investment:'khoản đầu tư dài hạn',property:'nhà đất/tài sản lớn',business_capital:'nguồn vốn tạo thu nhập',future:'khoản dành cho cuộc sống tương lai',unclear:'các nguồn lực hiện chưa được phân vai thật rõ'}[k]||'nguồn lực quan trọng';}
+function labelGoal(){
+ const keys=state.answers.q1?.keys||[state.answers.q1?.key];
+ const m={child:'tương lai của con',asset:'việc xây dựng thêm tài sản',business:'sự phát triển của công việc/kinh doanh',invest:'việc tích lũy và đầu tư',future:'một tương lai chủ động và thảnh thơi hơn'};
+ const vals=keys.map(k=>m[k]).filter(Boolean); return vals.length>1?vals.slice(0,-1).join(', ')+' và '+vals.at(-1):(vals[0]||'mục tiêu quan trọng');
+}
+function labelKeep(){
+ const keys=state.answers.q7?.keys||[state.answers.q7?.key];
+ const m={family:'khoản dành cho con/gia đình',investment:'khoản đầu tư dài hạn',property:'nhà đất/tài sản lớn',business_capital:'nguồn vốn tạo thu nhập',future:'khoản dành cho cuộc sống tương lai',unclear:'các nguồn lực hiện chưa được phân vai thật rõ'};
+ const vals=keys.map(k=>m[k]).filter(Boolean); return vals.length>1?vals.slice(0,-1).join(', ')+' và '+vals.at(-1):(vals[0]||'nguồn lực quan trọng');
+}
 function labelSource(){const k=state.answers.q8?.key;return {dedicated:'một nguồn riêng đã chuẩn bị',savings:'tiền đang để dành',investment:'một khoản đầu tư',business_capital:'nguồn vốn cho công việc',external:'nguồn huy động bên ngoài'}[k]||'một nguồn hiện có';}
 function labelLock(){const k=state.answers.q12?.key;return {child:'tương lai của con',lifestyle:'mức sống của gia đình',asset:'tài sản đang gây dựng',income_capital:'nguồn vốn tạo thu nhập',parents:'cuộc sống của bố mẹ/người thân',autonomy:'sự chủ động và quyền lựa chọn của chính mình'}[k]||'điều quan trọng nhất';}
 function resultNarrative(s,persona){
@@ -323,9 +380,9 @@ function results(){
 }
 function feedback(val,el){state.feedback=val;document.querySelectorAll('.feedbackBtns button').forEach(b=>b.classList.remove('active'));el.classList.add('active');const box=document.getElementById('feedbackMore'); if(val==='Chưa đúng lắm')box.classList.remove('hidden'); else box.classList.add('hidden');}
 function tier2Placeholder(){
- render(`<section class="card transition"><div class="emoji">📐</div><h2>Tầng 2 sẽ bắt đầu từ đây</h2><p>${who()} sẽ dùng thêm khoảng 6 câu ngắn để biến bức tranh vừa rồi thành <b>một vùng đệm mục tiêu bằng con số</b>.</p><div class="note">Trong MVP V1.2 hiện tại, Tầng 1 đã hoàn chỉnh. Tầng 2 sẽ được nối vào sau khi kiểm thử phản hồi của người dùng thật.</div><button class="btn primary" onclick="results()">Quay lại kết quả</button><button class="btn ghost" onclick="restart()">Làm lại bài kiểm tra</button></section>`);
+ render(`<section class="card transition"><div class="emoji">📐</div><h2>Tầng 2 sẽ bắt đầu từ đây</h2><p>${who()} sẽ dùng thêm khoảng 6 câu ngắn để biến bức tranh vừa rồi thành <b>một vùng đệm mục tiêu bằng con số</b>.</p><div class="note">Trong MVP V1.3 hiện tại, Tầng 1 đã hoàn chỉnh. Tầng 2 sẽ được nối vào sau khi kiểm thử phản hồi của người dùng thật.</div><button class="btn primary" onclick="results()">Quay lại kết quả</button><button class="btn ghost" onclick="restart()">Làm lại bài kiểm tra</button></section>`);
 }
-function restart(){ Object.assign(state,{name:'',pronoun:'Anh',current:0,answers:{},scores:{},flags:{},history:[]}); intro(); }
+function restart(){ Object.assign(state,{name:'',pronoun:'Anh',current:0,answers:{},scores:{},flags:{},history:[],multi:{}}); intro(); }
 intro();
 </script>
 </body>
