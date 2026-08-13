@@ -88,7 +88,7 @@ async function api(path,body){
 }
 function queueAnswer(code,value){
   if(!state.assessmentId)return Promise.resolve();
-  saveQueue=saveQueue.then(()=>api('/api/answers',{assessment_id:state.assessmentId,answers:[{question_code:code,answer_value:value?.key||value?.label||null,answer_json:value}]}));
+  saveQueue=saveQueue.catch(()=>{}).then(()=>api('/api/answers',{assessment_id:state.assessmentId,answers:[{question_code:code,answer_value:value?.key||value?.label||null,answer_json:value}]}));
   saveQueue.catch(error=>console.error('Không lưu được câu trả lời',code,error));
   return saveQueue;
 }
@@ -99,10 +99,18 @@ async function startRemoteAssessment(phone){
   state.assessmentId=assessment.assessment_id;
 }
 async function finishRemoteAssessment(){
-  if(!state.assessmentId||state.remoteCompleted)return;
+  if(!state.assessmentId)return;
   await queueAnswer('FINAL_RESULT',{scores:state.scores||{},flags:state.flags||{},tier2:state.t2||{},tier2calc:state.t2calc||{},tier3:state.t3||{},tier4:state.t4||{},tier4calc:state.t4calc||{},strategy:state.strategy||null});
   await saveQueue;
   await api('/api/assessments/complete',{assessment_id:state.assessmentId,current_stage:5});
+  state.remoteCompleted=true;
+}
+async function syncStageOne(){
+  if(!state.assessmentId)return;
+  await saveQueue.catch(()=>{});
+  const answers=Object.entries(state.answers).map(([code,value])=>({question_code:code,answer_value:value?.key||value?.label||null,answer_json:value}));
+  if(answers.length)await api('/api/answers',{assessment_id:state.assessmentId,answers});
+  await api('/api/assessments/complete',{assessment_id:state.assessmentId,current_stage:1});
   state.remoteCompleted=true;
 }
 
@@ -407,6 +415,7 @@ function resultNarrative(s,persona){
  return `<p>${who()} đang dành nhiều ưu tiên cho <b>${labelGoal()}</b>. Trong bức tranh hiện tại, <b>${names[strong]}</b> là một trong những điểm tốt hơn, còn <b>${names[weak]}</b> là phần có dư địa củng cố rõ nhất.</p><p>${conflictText}</p><p>${yt}</p><p>Và vì ${lowerPronoun()} chọn <b>${labelLock()}</b> là điều không muốn bị thay đổi, phần đáng củng cố trước không nhất thiết là “có thêm thật nhiều tiền”, mà là <b>tạo khoảng cách rõ hơn giữa tiền dành cho tương lai và nguồn lực dành cho những việc không nằm trong kế hoạch.</b></p>`;
 }
 function results(){
+ syncStageOne().catch(error=>console.error('Không đồng bộ được kết quả Tầng 1',error));
  const q2=scoreOf('q2'),q4=scoreOf('q4'),q6=scoreOf('q6'),q8=scoreOf('q8'),q9=scoreOf('q9'),q10=scoreOf('q10'),q11=scoreOf('q11');
  const conflict=calcConflict();
  const CF=(.6*q4+.4*q10)*2.5;
