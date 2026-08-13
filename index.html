@@ -93,7 +93,8 @@ function queueAnswer(code,value){
   return saveQueue;
 }
 async function startRemoteAssessment(phone){
-  const customer=await api('/api/customers',{full_name:state.name,pronoun:state.pronoun,phone,source:'github-pages-survey'});
+  const source=location.hostname.endsWith('github.io')?'github-pages-survey':'cloudflare-survey';
+  const customer=await api('/api/customers',{full_name:state.name,pronoun:state.pronoun,phone,source});
   state.customerId=customer.customer_id;
   const assessment=await api('/api/assessments',{customer_id:state.customerId,version:'MVP V1.6'});
   state.assessmentId=assessment.assessment_id;
@@ -210,6 +211,7 @@ function profile(){
     <div class="kicker">Làm quen một chút</div>
     <h2>Trước khi bắt đầu, mình làm quen nhé 😊</h2>
     <div class="field"><label>Bạn tên là gì?</label><input id="nameInput" placeholder="Ví dụ: Minh" maxlength="30"></div>
+    <div class="field"><label>Số điện thoại</label><input id="phoneInput" type="tel" inputmode="tel" placeholder="Ví dụ: 0986 831 158" maxlength="20"></div>
     <div class="field"><label>Mình nên xưng hô với bạn thế nào?</label><div class="seg" id="pronouns">
       <button class="active" onclick="choosePronoun('Anh',this)">Anh</button>
       <button onclick="choosePronoun('Chị',this)">Chị</button>
@@ -224,7 +226,7 @@ async function saveProfile(){
   state.name=v||'Minh';
   const button=document.querySelector('button[onclick="saveProfile()"]');
   button.disabled=true; button.textContent='Đang tạo phiên khảo sát…';
-  try{await startRemoteAssessment(null);welcome();}
+  try{await startRemoteAssessment(document.getElementById('phoneInput').value.trim()||null);welcome();}
   catch(e){alert(e.message+' Vui lòng kiểm tra mạng và thử lại.');button.disabled=false;button.textContent='Thử lại →';}
 }
 function welcome(){
