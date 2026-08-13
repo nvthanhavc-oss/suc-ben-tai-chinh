@@ -78,7 +78,7 @@ const state = {
   history:[], multi:{}, customerId:null, assessmentId:null, remoteCompleted:false
 };
 
-const API_BASE='https://suc-ben-tai-chinh-api.anhhuylogistics.workers.dev';
+const API_BASE=location.hostname.endsWith('github.io')?'https://suc-ben-tai-chinh-api.anhhuylogistics.workers.dev':'';
 let saveQueue=Promise.resolve();
 async function api(path,body){
   const response=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
