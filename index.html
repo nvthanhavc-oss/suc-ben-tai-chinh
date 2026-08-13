@@ -75,8 +75,36 @@
 const state = {
   name:'', pronoun:'Anh', current:0,
   answers:{}, scores:{}, flags:{},
-  history:[], multi:{}
+  history:[], multi:{}, customerId:null, assessmentId:null, remoteCompleted:false
 };
+
+const API_BASE='https://suc-ben-tai-chinh-api.anhhuylogistics.workers.dev';
+let saveQueue=Promise.resolve();
+async function api(path,body){
+  const response=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok) throw new Error(data.error||'Không kết nối được hệ thống lưu khảo sát.');
+  return data;
+}
+function queueAnswer(code,value){
+  if(!state.assessmentId)return Promise.resolve();
+  saveQueue=saveQueue.then(()=>api('/api/answers',{assessment_id:state.assessmentId,answers:[{question_code:code,answer_value:value?.key||value?.label||null,answer_json:value}]}));
+  saveQueue.catch(error=>console.error('Không lưu được câu trả lời',code,error));
+  return saveQueue;
+}
+async function startRemoteAssessment(phone){
+  const customer=await api('/api/customers',{full_name:state.name,pronoun:state.pronoun,phone,source:'github-pages-survey'});
+  state.customerId=customer.customer_id;
+  const assessment=await api('/api/assessments',{customer_id:state.customerId,version:'MVP V1.6'});
+  state.assessmentId=assessment.assessment_id;
+}
+async function finishRemoteAssessment(){
+  if(!state.assessmentId||state.remoteCompleted)return;
+  await queueAnswer('FINAL_RESULT',{scores:state.scores||{},flags:state.flags||{},tier2:state.t2||{},tier2calc:state.t2calc||{},tier3:state.t3||{},tier4:state.t4||{},tier4calc:state.t4calc||{},strategy:state.strategy||null});
+  await saveQueue;
+  await api('/api/assessments/complete',{assessment_id:state.assessmentId,current_stage:5});
+  state.remoteCompleted=true;
+}
 
 const screen = document.getElementById('screen');
 const progressWrap = document.getElementById('progressWrap');
@@ -151,6 +179,7 @@ function commitMulti(qid){
   const opts=getOptions(qid), arr=(state.multi&&state.multi[qid])||[];
   const picks=arr.map(i=>({...opts[i],index:i}));
   state.answers[qid]={multi:true,picks,keys:picks.map(x=>x.key),key:picks[0]?.key,indexes:arr};
+  queueAnswer(qid,state.answers[qid]);
   if(qid==='q7'&&picks.some(x=>x.key==='unclear')) state.flags.resource_roles_unclear=true;
   next(qid);
 }
@@ -182,7 +211,14 @@ function profile(){
   </section>`);
 }
 function choosePronoun(p, el){ state.pronoun=p; document.querySelectorAll('#pronouns button').forEach(b=>b.classList.remove('active')); el.classList.add('active'); }
-function saveProfile(){ const v=document.getElementById('nameInput').value.trim(); state.name=v||'Minh'; welcome(); }
+async function saveProfile(){
+  const v=document.getElementById('nameInput').value.trim();
+  state.name=v||'Minh';
+  const button=document.querySelector('button[onclick="saveProfile()"]');
+  button.disabled=true; button.textContent='Đang tạo phiên khảo sát…';
+  try{await startRemoteAssessment(null);welcome();}
+  catch(e){alert(e.message+' Vui lòng kiểm tra mạng và thử lại.');button.disabled=false;button.textContent='Thử lại →';}
+}
 function welcome(){
   render(`<section class="card transition"><div class="emoji">👋</div><h2>Rất vui được đồng hành cùng ${who()}!</h2><p>Mỗi người có một cách xây dựng cuộc sống khác nhau, vì vậy ở đây không có câu trả lời “chuẩn”.</p><div class="note">Điều thú vị là sau vài lựa chọn, ${lowerPronoun()} sẽ nhìn thấy <b>những phần đang khá vững và những phần có thể cần được củng cố thêm.</b></div>${primary('Xem thử nào →','q1()')}</section>`);
 }
@@ -294,6 +330,7 @@ function answer(qid, idx, el){
 
   const picked=opts[idx]||{};
   state.answers[qid]={...picked,index:idx};
+  queueAnswer(qid,state.answers[qid]);
   if(picked.flag) state.flags[picked.flag]=true;
   if(qid==='q7' && picked.key==='unclear') state.flags.resource_roles_unclear=true;
   document.querySelectorAll('.option').forEach(b=>b.classList.remove('selected')); el.classList.add('selected');
@@ -474,11 +511,11 @@ function t4Result(){const target=state.t2calc?.target||0, liquid=state.t4.liquid
 function tier5Intro(){const t=state.t2calc||{},m=state.t4calc||{};renderTier(`<section class="card transition"><div class="emoji">🧭</div><div class="kicker">Tầng 5 • Chiến lược</div><h2>Cùng một mục tiêu, có thể có nhiều cách chuẩn bị</h2><p>Mức dự phòng để giữ kế hoạch của ${who()} là khoảng <b>${fmtM(t.target||0)}</b>. ${capPronoun()} đã chọn tự giữ <b>${fmtM(m.selfTarget||0)}</b>.</p><div class="note">Bây giờ thử đặt ba cách tổ chức cạnh nhau. <b>Cùng một mục tiêu, nhưng lượng tiền cần nằm sẵn trong tài sản của mình có thể rất khác.</b></div><button class="btn primary" onclick="tier5Strategies()">Đặt 3 phương án cạnh nhau →</button></section>`,`Tầng 5 • Chiến lược`,20,5);}
 function tier5Strategies(){const t=state.t2calc||{},m=state.t4calc||{},target=t.target||0,self=m.selfTarget||0,out=m.outside||0;renderTier(`<section class="card"><div class="kicker">Tầng 5 • So sánh bằng chính con số của ${who()}</div><h2>Nếu muốn giữ mục tiêu khoảng ${fmtM(target)}, cách nào gần với quan điểm của ${lowerPronoun()} nhất?</h2><div class="fun">Không có phương án đúng cho tất cả mọi người. Hãy chọn cách khiến ${lowerPronoun()} thấy tài sản và kế hoạch của mình được giữ đúng vai trò nhất.</div><div class="strategy" onclick="chooseStrategy('A',this)"><b>A. TỰ TÍCH LŨY TOÀN BỘ</b><p>Toàn bộ mức dự phòng được để sẵn bằng tiền/tài sản của mình.</p><div class="compareMoney"><div><span>Tiền/tài sản tự giữ</span><strong>${fmtM(target)}</strong></div><div><span>Phần từ cơ chế khác</span><strong>0 đồng</strong></div></div></div><div class="strategy" onclick="chooseStrategy('B',this)"><b>B. PHỐI HỢP NHIỀU NGUỒN</b><p>Tự giữ phần mình thấy thoải mái; phần còn lại sẽ được xoay từ nhiều nguồn khi cần để tránh một tài sản chịu toàn bộ.</p><div class="compareMoney"><div><span>Phần tự giữ</span><strong>${fmtM(self)}</strong></div><div><span>Phần cần phối hợp</span><strong>${fmtM(out)}</strong></div></div></div><div class="strategy" onclick="chooseStrategy('C',this)"><b>C. ỦY THÁC MỘT PHẦN RỦI RO</b><p>Tự giữ phần mình muốn. Với phần còn lại, thay vì khóa sẵn toàn bộ tiền từ hôm nay, dùng một khoản chi phí nhỏ hơn để thiết lập một cơ chế có thể tạo nguồn lực theo thỏa thuận khi sự kiện thuộc phạm vi và đáp ứng điều kiện.</p><div class="compareMoney"><div><span>Phần tự giữ</span><strong>${fmtM(self)}</strong></div><div><span>Phần muốn ủy thác</span><strong>${fmtM(out)}</strong></div></div><div class="tiny" style="margin-top:8px">Khoản chi phí thực tế, phạm vi và mức nguồn lực phụ thuộc vào cơ chế và điều kiện được lựa chọn — bài test này chưa giả định một sản phẩm cụ thể.</div></div><button id="strategyNext" class="btn primary" style="display:none" onclick="tier5AfterChoice()">Tiếp tục →</button></section>`,`Tầng 5 • So sánh`,58,5);}
 function chooseStrategy(k,el){state.strategy=k;document.querySelectorAll('.strategy').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');const btn=document.getElementById('strategyNext');if(btn){btn.style.display='block';btn.textContent=k==='C'?'Xem điều thú vị này →':'Xem bản kế hoạch của tôi →';}}
-function tier5AfterChoice(){state.strategy==='C'?tier5Curiosity():tier5Result();}
+function tier5AfterChoice(){finishRemoteAssessment().catch(error=>console.error('Không hoàn tất được phiên khảo sát',error));state.strategy==='C'?tier5Curiosity():tier5Result();}
 function tier5Curiosity(){const t=state.t2calc||{},m=state.t4calc||{},target=t.target||0,self=m.selfTarget||0,out=m.outside||0;renderTier(`<section class="card"><div class="resultHead"><div class="badge">💡</div><div><div class="persona">Một góc nhìn khác</div><h2>Ồ, đây mới là điều thú vị…</h2></div></div><p>Để giữ kế hoạch ở mức khoảng <b>${fmtM(target)}</b>, ${who()} đã chọn tự giữ khoảng <b>${fmtM(self)}</b>.</p><div class="questionHero">Vậy ${fmtM(out)} còn lại có nhất thiết phải nằm sẵn trong tài khoản hoặc tài sản của ${lowerPronoun()} từ hôm nay không?</div><div class="insight"><h3>Không nhất thiết phải theo cùng một cách.</h3><p>Một cơ chế ủy thác phù hợp có thể cho phép ${lowerPronoun()} dành <b>một khoản chi phí nhỏ hơn nhiều so với ${fmtM(out)}</b> để thiết lập mức nguồn lực hướng tới phần mục tiêu này. Nguồn lực chỉ được kích hoạt theo phạm vi, sự kiện và điều kiện đã thỏa thuận.</p></div><div class="note"><b>Ý tưởng không phải “biến ít tiền thành nhiều tiền”.</b><br>Mà là phân vai: phần nào mình tự giữ, phần nào mình không muốn khóa sẵn bằng tài sản của mình, và phần nào có thể ủy thác cho một cơ chế khác.</div><button class="btn primary" onclick="tier5Result()">Đưa lựa chọn này vào bản kế hoạch →</button><button class="btn ghost" onclick="tier5Strategies()">So sánh lại A / B / C</button></section>`,`Tầng 5 • Góc nhìn mới`,78,5);}
 function tier5Result(){const t=state.t2calc||{},m=state.t4calc||{},s=state.strategy||'B';const texts={A:`${who()} thiên về việc <b>tự chuẩn bị toàn bộ mức dự phòng bằng tài sản của mình</b>. Cách này rất rõ ràng, đổi lại ${lowerPronoun()} cần giữ sẵn khoảng <b>${fmtM(t.target||0)}</b> cho mục tiêu này và theo dõi để mức dự phòng tăng cùng mức sống, trách nhiệm và tiêu chuẩn chủ động.`,B:`${who()} thiên về <b>phối hợp nhiều nguồn lực</b>: tự giữ khoảng <b>${fmtM(m.selfTarget||0)}</b>, còn khoảng <b>${fmtM(m.outside||0)}</b> sẽ được tổ chức từ nhiều nguồn khi cần. Điểm cần lưu ý là phải biết trước nguồn nào được phép dùng để không làm đảo lộn tài sản ưu tiên.`,C:`${who()} thiên về <b>ủy thác một phần rủi ro</b>: tự giữ khoảng <b>${fmtM(m.selfTarget||0)}</b>, còn phần mục tiêu khoảng <b>${fmtM(m.outside||0)}</b> không nhất thiết phải được khóa sẵn toàn bộ bằng tài sản của mình. Thay vào đó, ${lowerPronoun()} có thể tìm hiểu một cơ chế sử dụng khoản chi phí nhỏ hơn để thiết lập nguồn lực theo thỏa thuận khi sự kiện thuộc phạm vi và đáp ứng điều kiện.`};renderTier(`<section class="card"><div class="resultHead"><div class="badge">🧭</div><div><div class="persona">Tầng 5 • Kế hoạch của ${who()}</div><h2>Giữ quyền lựa chọn</h2></div></div><div class="summaryGrid"><div class="summaryBox"><span>Mức dự phòng để giữ kế hoạch</span><strong>${fmtM(t.target||0)}</strong></div><div class="summaryBox"><span>Phần muốn tự giữ</span><strong>${fmtM(m.selfTarget||0)}</strong></div><div class="summaryBox"><span>Phần không muốn tự gánh hết</span><strong>${fmtM(m.outside||0)}</strong></div><div class="summaryBox"><span>Cách đã chọn</span><strong>${s}</strong></div></div><div class="insight"><h3>Cách tổ chức phù hợp với lựa chọn hiện tại</h3><p>${texts[s]}</p></div>${s==='C'?`<div class="note"><b>Câu hỏi đáng để tìm hiểu tiếp:</b><br>Với ${fmtM(m.outside||0)} mà ${lowerPronoun()} không muốn khóa sẵn, một cơ chế ủy thác phù hợp sẽ cần phạm vi nào, mức nguồn lực bao nhiêu và chi phí ra sao?</div>`:''}<div class="note"><b>Sự chủ động không nằm ở việc có thật nhiều tiền. Mà ở việc khi cần, mình không phải hy sinh điều này để cứu điều khác.</b></div><button class="btn primary" onclick="window.print()">Lưu / in kết quả của tôi</button><button class="btn ghost" onclick="tier5Strategies()">So sánh lại 3 phương án</button><button class="btn ghost" onclick="results()">Xem lại bức tranh Tầng 1</button><button class="btn ghost" onclick="restart()">Làm lại từ đầu</button></section>`,`Tầng 5 • Hoàn tất`,100,5);}
 
-function restart(){ Object.assign(state,{name:'',pronoun:'Anh',current:0,answers:{},scores:{},flags:{},history:[],multi:{},t2:{},t3:{},t4:{},tierMulti:{},strategy:null}); intro(); }
+function restart(){ Object.assign(state,{name:'',pronoun:'Anh',current:0,answers:{},scores:{},flags:{},history:[],multi:{},t2:{},t3:{},t4:{},tierMulti:{},strategy:null,customerId:null,assessmentId:null,remoteCompleted:false}); intro(); }
 intro();
 </script>
 </body>
