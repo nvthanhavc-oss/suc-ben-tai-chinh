@@ -82,7 +82,8 @@ const API_BASE=location.hostname.endsWith('github.io')?'https://suc-ben-tai-chin
 let saveQueue=Promise.resolve();
 async function api(path,body){
   const response=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  const data=await response.json().catch(()=>({}));
+  const type=response.headers.get('content-type')||'';
+  const data=type.includes('application/json')?await response.json():{error:'Máy chủ tạm thời không trả về dữ liệu hợp lệ.'};
   if(!response.ok) throw new Error(data.error||'Không kết nối được hệ thống lưu khảo sát.');
   return data;
 }
